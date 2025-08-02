@@ -1,0 +1,126 @@
+import streamlit as st
+from openai import OpenAI
+import wikipedia
+from gtts import gTTS
+from io import BytesIO
+from pydub import AudioSegment
+import re
+import os
+
+# Secure API key from Streamlit secrets or env
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+# Wikipedia language setup
+wikipedia.set_lang("en")
+
+def get_wikivoyage_summary(destination):
+    try:
+        return wikipedia.summary(destination + " (Wikivoyage)", sentences=10)
+    except Exception as e:
+        return f"Error fetching summary: {e}"
+
+def get_wikivoyage_url(destination):
+    return f"https://en.wikivoyage.org/wiki/{destination.replace(' ', '_')}"
+
+def generate_conversation(content, personas):
+    persona_intro = ", ".join(personas)
+    messages = [
+        {"role": "system", "content": f"You are a travel radio station with hosts {persona_intro}. Speak naturally. Do not use asterisks or em dashes."},
+        {"role": "user", "content": f"Have a lively 3-minute radio-style conversation about this Wikivoyage article:\n\n{content}"}
+    ]
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=messages,
+        temperature=0.8
+    )
+    raw_text = response.choices[0].message.content
+    clean_text = re.sub(r"[*—–]+", "", raw_text)
+    return clean_text
+
+def split_by_speaker(transcript):
+    dialogue = []
+    for line in transcript.strip().split("\n"):
+        if ":" in line:
+            speaker, text = line.split(":", 1)
+            speaker = speaker.strip()
+            text = text.strip()
+            dialogue.append(f"{speaker} says: {text}")
+    return dialogue
+
+def synthesize_gtts_audio(dialogue_lines):
+    combined = AudioSegment.silent(duration=500)
+    for line in dialogue_lines:
+        tts = gTTS(text=line, lang='en')
+        buf = BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+        audio = AudioSegment.from_file(buf, format="mp3")
+        combined += audio + AudioSegment.silent(duration=300)
+    final_fp = BytesIO()
+    combined.export(final_fp, format="mp3")
+    final_fp.seek(0)
+    return final_fp
+
+# ----------------------------
+# Streamlit UI
+# ----------------------------
+st.set_page_config(page_title="Destination Radio", layout="centered")
+
+st.markdown(
+    """
+    <style>
+    .radio-box {
+        background-color: #1c1c1c;
+        color: white;
+        padding: 25px;
+        border-radius: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+        text-align: center;
+    }
+    .now-playing {
+        font-size: 20px;
+        font-weight: bold;
+        margin-top: 10px;
+        margin-bottom: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+st.title("Destination Radio")
+st.caption("AI-powered travel podcast using Wikivoyage articles")
+
+st.markdown("<div class='radio-box'>", unsafe_allow_html=True)
+
+destination = st.text_input("Enter a destination", placeholder="e.g., Tokyo, Lisbon")
+
+personas = st.multiselect(
+    "Choose your radio hosts",
+    ["Local Historian", "Luxury Travel Blogger", "Backpacker", "Food Critic", "Cultural Anthropologist"],
+    default=["Local Historian", "Luxury Travel Blogger"]
+)
+
+if st.button("Generate Podcast"):
+    if not destination:
+        st.warning("Please enter a destination.")
+    else:
+        with st.spinner("Generating your podcast..."):
+            article = get_wikivoyage_summary(destination)
+            if "Error" in article:
+                st.error(article)
+            else:
+                conversation = generate_conversation(article, personas)
+                dialogue_lines = split_by_speaker(conversation)
+                if not dialogue_lines:
+                    st.error("Could not parse dialogue from GPT output.")
+                else:
+                    audio_fp = synthesize_gtts_audio(dialogue_lines)
+                    st.markdown(f"<div class='now-playing'>Now Playing: {destination}</div>", unsafe_allow_html=True)
+                    st.audio(audio_fp, format="audio/mp3")
+
+                    with st.expander("Show transcript"):
+                        st.markdown(conversation)
+
+                    st.markdown(f"[View original Wikivoyage article]({get_wikivoyage_url(destination)})")
+
+st.markdown("</div>", unsafe_allow_html=True)
