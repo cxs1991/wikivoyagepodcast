@@ -69,10 +69,8 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-st.title("Destination Radio")
-st.caption("AI-powered travel podcast using Wikivoyage articles")
-
-st.markdown("<div class='radio-box'>", unsafe_allow_html=True)
+st.title("Destination Podcast")
+st.caption("AI-powered travel podcast | Wikivoyage articles")
 
 destination = st.text_input("Enter a destination", placeholder="e.g., Tokyo, Lisbon")
 
