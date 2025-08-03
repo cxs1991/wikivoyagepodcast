@@ -3,7 +3,6 @@ from openai import OpenAI
 import wikipedia
 from gtts import gTTS
 from io import BytesIO
-from pydub import AudioSegment
 import re
 import os
 
@@ -37,29 +36,12 @@ def generate_conversation(content, personas):
     clean_text = re.sub(r"[*—–]+", "", raw_text)
     return clean_text
 
-def split_by_speaker(transcript):
-    dialogue = []
-    for line in transcript.strip().split("\n"):
-        if ":" in line:
-            speaker, text = line.split(":", 1)
-            speaker = speaker.strip()
-            text = text.strip()
-            dialogue.append(f"{speaker} says: {text}")
-    return dialogue
-
-def synthesize_gtts_audio(dialogue_lines):
-    combined = AudioSegment.silent(duration=500)
-    for line in dialogue_lines:
-        tts = gTTS(text=line, lang='en')
-        buf = BytesIO()
-        tts.write_to_fp(buf)
-        buf.seek(0)
-        audio = AudioSegment.from_file(buf, format="mp3")
-        combined += audio + AudioSegment.silent(duration=300)
-    final_fp = BytesIO()
-    combined.export(final_fp, format="mp3")
-    final_fp.seek(0)
-    return final_fp
+def synthesize_gtts_audio(full_text):
+    tts = gTTS(text=full_text, lang='en')
+    buf = BytesIO()
+    tts.write_to_fp(buf)
+    buf.seek(0)
+    return buf
 
 # ----------------------------
 # Streamlit UI
@@ -110,17 +92,13 @@ if st.button("Generate Podcast"):
                 st.error(article)
             else:
                 conversation = generate_conversation(article, personas)
-                dialogue_lines = split_by_speaker(conversation)
-                if not dialogue_lines:
-                    st.error("Could not parse dialogue from GPT output.")
-                else:
-                    audio_fp = synthesize_gtts_audio(dialogue_lines)
-                    st.markdown(f"<div class='now-playing'>Now Playing: {destination}</div>", unsafe_allow_html=True)
-                    st.audio(audio_fp, format="audio/mp3")
+                audio_fp = synthesize_gtts_audio(conversation)
+                st.markdown(f"<div class='now-playing'>Now Playing: {destination}</div>", unsafe_allow_html=True)
+                st.audio(audio_fp, format="audio/mp3")
 
-                    with st.expander("Show transcript"):
-                        st.markdown(conversation)
+                with st.expander("Show transcript"):
+                    st.markdown(conversation)
 
-                    st.markdown(f"[View original Wikivoyage article]({get_wikivoyage_url(destination)})")
+                st.markdown(f"[View original Wikivoyage article]({get_wikivoyage_url(destination)})")
 
 st.markdown("</div>", unsafe_allow_html=True)
