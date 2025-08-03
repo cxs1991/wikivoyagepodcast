@@ -6,7 +6,6 @@ from io import BytesIO
 import re
 import os
 
-# Secure API key from Streamlit secrets or env
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
 # Wikipedia language setup
