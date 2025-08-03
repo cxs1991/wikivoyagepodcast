@@ -73,7 +73,7 @@ st.title("Destination Podcast")
 st.caption("AI-powered travel podcast | Wikivoyage articles")
 
 destination = st.text_input("Enter a destination", placeholder="e.g., Tokyo, Lisbon")
-st.caption ("use normalized locations like saint johns vs st. johns)
+st.caption ("use normalized locations like saint johns vs st. johns")
 
 personas = st.multiselect(
     "Choose your radio hosts",
